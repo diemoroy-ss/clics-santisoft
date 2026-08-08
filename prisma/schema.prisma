@@ -1,0 +1,176 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ─────────────────────────────────────────────────────────────────────
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum FraudReason {
+  CLICK_FREQUENCY   // Demasiados clics en poco tiempo
+  ZERO_SESSION      // Sesión de 0 segundos
+  NO_INTERACTION    // Sin movimiento de mouse ni scroll
+  VPN_DETECTED      // IP de VPN
+  PROXY_DETECTED    // IP de Proxy
+  DATACENTER        // IP de datacenter
+  MANUAL            // Bloqueada manualmente por el usuario
+  BOT_FINGERPRINT   // Patrón de fingerprint de bot
+}
+
+// ─── Users ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id                    // Firebase Auth UID
+  email     String   @unique
+  name      String?
+  plan      Plan     @default(FREE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sites  Site[]
+  tokens GoogleAdsToken[]
+}
+
+// ─── Sites ─────────────────────────────────────────────────────────────────────
+
+model Site {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  domain    String
+  siteKey   String   @unique @default(cuid())   // Usado en el tracking script
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fraudRule  FraudRule?
+  clickLogs  ClickLog[]
+  blockedIPs BlockedIP[]
+  campaigns  Campaign[]
+
+  @@index([userId])
+}
+
+// ─── Click Logs ────────────────────────────────────────────────────────────────
+
+model ClickLog {
+  id           String      @id @default(cuid())
+  siteId       String
+  site         Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  ip           String
+  gclid        String?                           // Google Click ID
+  fbclid       String?                           // Facebook Click ID
+  userAgent    String?
+  fingerprint  String?                           // Browser fingerprint hash
+  country      String?
+  countryCode  String?
+  city         String?
+  isp          String?
+  isVPN        Boolean     @default(false)
+  isProxy      Boolean     @default(false)
+  isDatacenter Boolean     @default(false)
+  isFraud      Boolean     @default(false)
+  fraudReason  FraudReason?
+  sessionTime  Int?                              // Segundos de permanencia
+  mouseEvents  Int?                              // Nº de eventos mouse/touch/scroll
+  referer      String?
+  screenRes    String?
+  timestamp    DateTime    @default(now())
+
+  @@index([siteId, ip, timestamp])
+  @@index([siteId, timestamp])
+  @@index([siteId, isFraud])
+}
+
+// ─── Blocked IPs ───────────────────────────────────────────────────────────────
+
+model BlockedIP {
+  id                    String      @id @default(cuid())
+  siteId                String
+  site                  Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  ip                    String
+  reason                FraudReason
+  country               String?
+  countryCode           String?
+  isp                   String?
+  googleAdsCriterionId  String?     // Resource name en Google Ads API
+  campaignId            String?
+  blockedAt             DateTime    @default(now())
+  expiresAt             DateTime?
+  isActive              Boolean     @default(true)
+
+  @@unique([siteId, ip])
+  @@index([siteId, isActive])
+  @@index([siteId, blockedAt])
+}
+
+// ─── Fraud Rules ───────────────────────────────────────────────────────────────
+
+model FraudRule {
+  id                    String   @id @default(cuid())
+  siteId                String   @unique
+  site                  Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  // Regla de frecuencia
+  maxClicksPerIP        Int      @default(5)
+  timeWindowMinutes     Int      @default(60)
+  // Toggles de bloqueo
+  blockVPN              Boolean  @default(true)
+  blockProxy            Boolean  @default(true)
+  blockDatacenter       Boolean  @default(true)
+  blockBots             Boolean  @default(true)
+  // Comportamiento
+  minSessionSeconds     Int      @default(3)
+  minMouseEvents        Int      @default(0)
+  // Google Ads sync
+  autoSyncGoogleAds     Boolean  @default(false)
+  // Estimación de CPC para calcular $ protegido
+  cpcEstimateUSD        Float    @default(1.5)
+  updatedAt             DateTime @updatedAt
+}
+
+// ─── Google Ads Tokens ─────────────────────────────────────────────────────────
+
+model GoogleAdsToken {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId   String   // Google Ads Customer ID (sin guiones)
+  accessToken  String   @db.Text
+  refreshToken String   @db.Text
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, customerId])
+}
+
+// ─── Campaigns ─────────────────────────────────────────────────────────────────
+
+model Campaign {
+  id               String    @id @default(cuid())
+  siteId           String
+  site             Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  googleCampaignId String                          // ID de campaña en Google Ads
+  name             String
+  status           String    @default("ENABLED")
+  avgCpcUSD        Float?                          // CPC promedio para calcular $ ahorrado
+  blockedIPCount   Int       @default(0)
+  syncedAt         DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@unique([siteId, googleCampaignId])
+  @@index([siteId])
+}

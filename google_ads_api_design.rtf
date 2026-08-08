@@ -1,0 +1,30 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\lang1033\f0\fs24\b GOOGLE ADS API INTEGRATION DESIGN DOCUMENT\b0\par
+\par
+\b Project Name:\b0  Clics (Click Fraud Prevention SaaS)\par
+\b Developer:\b0  Santisoft\par
+\b Contact Email:\b0  santisoftai@gmail.com\par
+\par
+\hr
+\par
+\b 1. Overview\b0\par
+Our application "Clics" is a software-as-a-service (SaaS) platform designed to protect Google Ads advertisers from click fraud, bots, and invalid traffic in real-time.\par
+\par
+\b 2. Core API Functionality\b0\par
+We integrate with the Google Ads API to automatically add and remove IP address exclusions at the campaign level for our authorized clients. \par
+\par
+\b 3. Services and Endpoints Used\b0\par
+We primarily use the following services:\par
+- \b CampaignService\b0: To retrieve active campaigns for the client's Google Ads account.\par
+- \b CampaignCriterionService\b0: To manage campaign-level exclusions. Specifically, we use the \b mutateCampaignCriteria\b0 method to create a \b CampaignCriterion\b0 with the \b ip_block\b0 (IPAddress) field populated with the detected fraudulent IP address.\par
+\par
+\b 4. OAuth 2.0 Flow\b0\par
+1. The advertiser logs into their Clics dashboard and clicks "Connect Google Ads".\par
+2. They are redirected to the Google OAuth consent screen where they grant permission to manage their campaigns (\b https://www.googleapis.com/auth/adwords\b0).\par
+3. Google returns a refresh token which is securely stored in our PostgreSQL database.\par
+4. When our real-time detection script flags an IP address as fraudulent, our backend requests an access token and executes the IP exclusion mutate request on behalf of the user.\par
+\par
+\b 5. Data Privacy and Security\b0\par
+All client OAuth tokens are encrypted at rest. We only request the minimum required permissions to exclude IP addresses. We do not modify campaign budgets or bidding strategies.\par
+}
