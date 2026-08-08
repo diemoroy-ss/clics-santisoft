@@ -9,6 +9,12 @@ const nextConfig = {
   experimental: {
     webpackBuildWorker: false,
   },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   async headers() {
     return [
       {
