@@ -3,8 +3,8 @@ module.exports = {
     {
       name:        'clics',
       cwd:         '/var/www/clics',                 // Ajustar al path real en AWS
-      script:      'node_modules/.bin/next',
-      args:        'start -p 3008',
+      script:      'node_modules/next/dist/bin/next',
+      args:        'start',
       instances:   1,
       autorestart: true,
       watch:       false,
